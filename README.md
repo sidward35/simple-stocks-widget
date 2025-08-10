@@ -2,6 +2,8 @@
 
 A clean, minimal Android widget app for displaying real-time stock prices on your home screen. Features both 2×1 and 1×1 widget sizes with automatic updates during market hours.
 
+[Download apk](https://github.com/sidward35/simple-stocks-widget/releases/download/v1.0.0/xyz.smathur.simplestockswidget.v1.0.0.apk)
+
 ![widgets on home page](screenshot.png)
 
 ## Features
