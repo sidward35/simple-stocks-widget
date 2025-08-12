@@ -49,8 +49,9 @@ class WidgetConfigActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     WidgetConfigScreen(
-                        onSave = { symbol, selectedApp ->
-                            saveWidgetConfig(symbol, selectedApp)
+                        appWidgetId = appWidgetId,
+                        onSave = { symbol, selectedApp, isDarkTheme ->
+                            saveWidgetConfig(symbol, selectedApp, isDarkTheme)
                             finishWithSuccess()
                         },
                         onCancel = { finish() }
@@ -60,11 +61,12 @@ class WidgetConfigActivity : ComponentActivity() {
         }
     }
 
-    private fun saveWidgetConfig(symbol: String, selectedApp: AppInfo) {
+    private fun saveWidgetConfig(symbol: String, selectedApp: AppInfo, isDarkTheme: Boolean) {
         val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
         with(prefs.edit()) {
             putString("symbol_$appWidgetId", symbol)
             putString("launch_app_$appWidgetId", selectedApp.packageName)
+            putBoolean("theme_$appWidgetId", isDarkTheme)
             apply()
         }
 
@@ -85,20 +87,29 @@ class WidgetConfigActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WidgetConfigScreen(
-    onSave: (String, AppInfo) -> Unit,
+    appWidgetId: Int,
+    onSave: (String, AppInfo, Boolean) -> Unit,
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
-    var symbol by remember { mutableStateOf("AAPL") }
+    val prefs = context.getSharedPreferences("widget_prefs", android.content.Context.MODE_PRIVATE)
+
+    // Load existing settings if they exist
+    val existingSymbol = prefs.getString("symbol_$appWidgetId", "AAPL") ?: "AAPL"
+    val existingLaunchApp = prefs.getString("launch_app_$appWidgetId", context.packageName) ?: context.packageName
+    val existingTheme = prefs.getBoolean("theme_$appWidgetId", true) // Default to dark
+
+    var symbol by remember { mutableStateOf(existingSymbol) }
     var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
+    var isDarkTheme by remember { mutableStateOf(existingTheme) }
     var showAppSelector by remember { mutableStateOf(false) }
     var availableApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
 
-    // Load available apps
+    // Load available apps and set current selection
     LaunchedEffect(Unit) {
         availableApps = AppUtils.getInstalledApps(context)
-        // Set default selection to first app (Simple Stocks Widget)
-        selectedApp = availableApps.firstOrNull()
+        selectedApp = availableApps.find { it.packageName == existingLaunchApp }
+            ?: availableApps.firstOrNull()
     }
 
     Column(
@@ -126,6 +137,12 @@ fun WidgetConfigScreen(
             singleLine = true
         )
 
+        Text(
+            text = "Examples:\n• AAPL (Apple stock)\n• SPY (S&P 500 ETF)\n• TSLA (Tesla stock)",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+
         // App Selection
         Card(
             modifier = Modifier
@@ -141,7 +158,6 @@ fun WidgetConfigScreen(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                // Selected app display
                 selectedApp?.let { app ->
                     Row(
                         modifier = Modifier
@@ -176,11 +192,46 @@ fun WidgetConfigScreen(
             }
         }
 
-        Text(
-            text = "Examples:\n• AAPL (Apple stock)\n• SPY (S&P 500 ETF)\n• TSLA (Tesla stock)",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
+        // Widget Appearance
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Widget Appearance",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Theme Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Theme",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = if (isDarkTheme) "Dark background" else "Light background",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Switch(
+                        checked = isDarkTheme,
+                        onCheckedChange = { isDarkTheme = it }
+                    )
+                }
+            }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -196,7 +247,7 @@ fun WidgetConfigScreen(
             Button(
                 onClick = {
                     selectedApp?.let { app ->
-                        onSave(symbol, app)
+                        onSave(symbol, app, isDarkTheme)
                     }
                 },
                 modifier = Modifier.weight(1f),

@@ -56,13 +56,14 @@ fun SettingsScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(16.dp)
+            .statusBarsPadding(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = "Simple Stocks Widget",
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(top = 16.dp, bottom = 32.dp)
+            modifier = Modifier.padding(bottom = 32.dp)
         )
 
         Card(
