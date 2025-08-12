@@ -66,9 +66,12 @@ class StockWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.percent_text, percentText)
 
             // Set colors based on positive/negative change
-            val color = if (stockData.change >= 0) Color.parseColor("#4CAF50") else Color.parseColor("#F44336")
-            views.setTextColor(R.id.change_text, color)
-            views.setTextColor(R.id.percent_text, color)
+            val changeColor = if (stockData.change >= 0) Color.parseColor("#4CAF50") else Color.parseColor("#F44336")
+            views.setTextColor(R.id.change_text, changeColor)
+            views.setTextColor(R.id.percent_text, changeColor)
+
+            // Apply theme (no opacity parameter needed)
+            WidgetStyleHelper.applyWidgetTheme(context, views, appWidgetId, false)
 
             // Set up click intent to launch selected app
             val pendingIntent = createLaunchIntent(context, appWidgetId, launchApp)
