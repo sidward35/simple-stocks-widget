@@ -6,13 +6,19 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
 import xyz.smathur.simplestockswidget.ui.theme.SimpleStocksWidgetTheme
 
 class WidgetConfigActivity : ComponentActivity() {
@@ -43,8 +49,8 @@ class WidgetConfigActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     WidgetConfigScreen(
-                        onSave = { symbol ->
-                            saveWidgetConfig(symbol)
+                        onSave = { symbol, selectedApp ->
+                            saveWidgetConfig(symbol, selectedApp)
                             finishWithSuccess()
                         },
                         onCancel = { finish() }
@@ -54,10 +60,11 @@ class WidgetConfigActivity : ComponentActivity() {
         }
     }
 
-    private fun saveWidgetConfig(symbol: String) {
+    private fun saveWidgetConfig(symbol: String, selectedApp: AppInfo) {
         val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
         with(prefs.edit()) {
             putString("symbol_$appWidgetId", symbol)
+            putString("launch_app_$appWidgetId", selectedApp.packageName)
             apply()
         }
 
@@ -78,10 +85,21 @@ class WidgetConfigActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WidgetConfigScreen(
-    onSave: (String) -> Unit,
+    onSave: (String, AppInfo) -> Unit,
     onCancel: () -> Unit
 ) {
-    var symbol by remember { mutableStateOf("SPY") }
+    val context = LocalContext.current
+    var symbol by remember { mutableStateOf("AAPL") }
+    var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
+    var showAppSelector by remember { mutableStateOf(false) }
+    var availableApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+
+    // Load available apps
+    LaunchedEffect(Unit) {
+        availableApps = AppUtils.getInstalledApps(context)
+        // Set default selection to first app (Simple Stocks Widget)
+        selectedApp = availableApps.firstOrNull()
+    }
 
     Column(
         modifier = Modifier
@@ -91,11 +109,12 @@ fun WidgetConfigScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Configure Widget",
+            text = "Configure 2×1 Widget",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 32.dp)
         )
 
+        // Stock Symbol Input
         OutlinedTextField(
             value = symbol,
             onValueChange = { symbol = it.uppercase() },
@@ -106,6 +125,56 @@ fun WidgetConfigScreen(
                 .padding(bottom = 16.dp),
             singleLine = true
         )
+
+        // App Selection
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Tap Action",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                // Selected app display
+                selectedApp?.let { app ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showAppSelector = true }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            bitmap = app.icon.toBitmap(48, 48).asImageBitmap(),
+                            contentDescription = app.appName,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .padding(end = 8.dp)
+                        )
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = app.appName,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Tap widget to open this app",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Text("Change", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
 
         Text(
             text = "Examples:\n• AAPL (Apple stock)\n• SPY (S&P 500 ETF)\n• TSLA (Tesla stock)",
@@ -125,12 +194,60 @@ fun WidgetConfigScreen(
             }
 
             Button(
-                onClick = { onSave(symbol) },
+                onClick = {
+                    selectedApp?.let { app ->
+                        onSave(symbol, app)
+                    }
+                },
                 modifier = Modifier.weight(1f),
-                enabled = symbol.isNotBlank()
+                enabled = symbol.isNotBlank() && selectedApp != null
             ) {
                 Text("Save")
             }
         }
+    }
+
+    // App Selection Dialog
+    if (showAppSelector && availableApps.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showAppSelector = false },
+            title = { Text("Select App to Launch") },
+            text = {
+                LazyColumn(
+                    modifier = Modifier.height(400.dp)
+                ) {
+                    items(availableApps) { app ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedApp = app
+                                    showAppSelector = false
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                bitmap = app.icon.toBitmap(48, 48).asImageBitmap(),
+                                contentDescription = app.appName,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .padding(end = 12.dp)
+                            )
+
+                            Text(
+                                text = app.appName,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAppSelector = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
