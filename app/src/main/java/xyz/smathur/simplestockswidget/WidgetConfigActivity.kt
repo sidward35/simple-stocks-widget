@@ -23,15 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import xyz.smathur.simplestockswidget.ui.theme.SimpleStocksWidgetTheme
 
-// Data class for URL templates
-data class UrlTemplate(
-    val name: String,
-    val template: String, // Use {SYMBOL} as placeholder
-    val icon: String? = null
-) {
-    fun buildUrl(symbol: String): String = template.replace("{SYMBOL}", symbol)
-}
-
 class WidgetConfigActivity : ComponentActivity() {
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
 
@@ -117,13 +108,12 @@ fun WidgetConfigScreen(
     // Predefined URL templates for popular finance sites
     val urlTemplates = listOf(
         UrlTemplate("Yahoo Finance", "https://finance.yahoo.com/quote/{SYMBOL}"),
-        UrlTemplate("Google Finance", "https://www.google.com/finance/quote/{SYMBOL}"),
         UrlTemplate("TradingView", "https://www.tradingview.com/symbols/{SYMBOL}/"),
-        UrlTemplate("Webull", "https://www.webull.com/quote/{SYMBOL}"),
         UrlTemplate("Finviz", "https://finviz.com/quote.ashx?t={SYMBOL}"),
         UrlTemplate("MarketWatch", "https://www.marketwatch.com/investing/stock/{SYMBOL}"),
         UrlTemplate("Seeking Alpha", "https://seekingalpha.com/symbol/{SYMBOL}"),
-        UrlTemplate("Bloomberg", "https://www.bloomberg.com/quote/{SYMBOL}:US")
+        UrlTemplate("Bloomberg", "https://www.bloomberg.com/quote/{SYMBOL}:US"),
+        UrlTemplate("Google Finance", "https://www.google.com/finance/quote/{SYMBOL}")
     )
 
     // Load existing settings if they exist
