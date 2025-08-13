@@ -23,22 +23,27 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import xyz.smathur.simplestockswidget.ui.theme.SimpleStocksWidgetTheme
 
-class WidgetConfigActivity : ComponentActivity() {
+// Base config activity that handles both widget sizes
+abstract class BaseWidgetConfigActivity : ComponentActivity() {
+
+    enum class WidgetType {
+        NORMAL, SMALL
+    }
+
+    abstract val widgetType: WidgetType
+
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Set the result to CANCELED initially
         setResult(Activity.RESULT_CANCELED)
 
-        // Get the widget ID from the intent
         appWidgetId = intent?.extras?.getInt(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
             AppWidgetManager.INVALID_APPWIDGET_ID
         ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
 
-        // If the intent doesn't have a valid widget ID, finish
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             finish()
             return
@@ -52,6 +57,7 @@ class WidgetConfigActivity : ComponentActivity() {
                 ) {
                     WidgetConfigScreen(
                         appWidgetId = appWidgetId,
+                        widgetType = widgetType,
                         onSave = { symbol, selectedApp, isDarkTheme, urlTemplate ->
                             saveWidgetConfig(symbol, selectedApp, isDarkTheme, urlTemplate)
                             finishWithSuccess()
@@ -64,26 +70,32 @@ class WidgetConfigActivity : ComponentActivity() {
     }
 
     private fun saveWidgetConfig(symbol: String, selectedApp: AppInfo?, isDarkTheme: Boolean, urlTemplate: UrlTemplate?) {
+        val config = getWidgetConfig(widgetType)
         val prefs = getSharedPreferences("widget_prefs", MODE_PRIVATE)
+
         with(prefs.edit()) {
-            putString("symbol_$appWidgetId", symbol)
+            putString("${config.prefixKey}symbol_$appWidgetId", symbol)
 
             // Save either app or URL preference
             if (selectedApp != null) {
-                putString("launch_app_$appWidgetId", selectedApp.packageName)
-                remove("launch_url_$appWidgetId") // Clear URL if app is selected
+                putString("${config.prefixKey}launch_app_$appWidgetId", selectedApp.packageName)
+                remove("${config.prefixKey}launch_url_$appWidgetId")
             } else if (urlTemplate != null) {
-                putString("launch_url_$appWidgetId", urlTemplate.template)
-                remove("launch_app_$appWidgetId") // Clear app if URL is selected
+                putString("${config.prefixKey}launch_url_$appWidgetId", urlTemplate.template)
+                remove("${config.prefixKey}launch_app_$appWidgetId")
             }
 
-            putBoolean("theme_$appWidgetId", isDarkTheme)
+            putBoolean("${config.prefixKey}theme_$appWidgetId", isDarkTheme)
             apply()
         }
 
-        // Update the widget immediately
+        // Update the appropriate widget
         val appWidgetManager = AppWidgetManager.getInstance(this)
-        StockWidgetProvider.updateAppWidget(this, appWidgetManager, appWidgetId)
+        val widgetSize = when (widgetType) {
+            WidgetType.NORMAL -> BaseStockWidgetProvider.WidgetSize.NORMAL
+            WidgetType.SMALL -> BaseStockWidgetProvider.WidgetSize.SMALL
+        }
+        BaseStockWidgetProvider.updateAppWidget(this, appWidgetManager, appWidgetId, widgetSize)
     }
 
     private fun finishWithSuccess() {
@@ -93,17 +105,62 @@ class WidgetConfigActivity : ComponentActivity() {
         setResult(Activity.RESULT_OK, resultValue)
         finish()
     }
+
+    private fun getWidgetConfig(widgetType: WidgetType): WidgetConfigData {
+        return when (widgetType) {
+            WidgetType.NORMAL -> WidgetConfigData(
+                prefixKey = "",
+                defaultSymbol = "AAPL",
+                title = "Configure 2×1 Widget"
+            )
+            WidgetType.SMALL -> WidgetConfigData(
+                prefixKey = "small_",
+                defaultSymbol = "SPY",
+                title = "Configure 1×1 Widget"
+            )
+        }
+    }
+
+    private data class WidgetConfigData(
+        val prefixKey: String,
+        val defaultSymbol: String,
+        val title: String
+    )
+}
+
+// Concrete implementations - these are what the widget info XMLs reference
+class WidgetConfigActivity : BaseWidgetConfigActivity() {
+    override val widgetType = WidgetType.NORMAL
+}
+
+class SmallWidgetConfigActivity : BaseWidgetConfigActivity() {
+    override val widgetType = WidgetType.SMALL
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WidgetConfigScreen(
     appWidgetId: Int,
+    widgetType: BaseWidgetConfigActivity.WidgetType,
     onSave: (String, AppInfo?, Boolean, UrlTemplate?) -> Unit,
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("widget_prefs", android.content.Context.MODE_PRIVATE)
+
+    // Get widget-specific configuration
+    val config = when (widgetType) {
+        BaseWidgetConfigActivity.WidgetType.NORMAL -> WidgetConfigData(
+            prefixKey = "",
+            defaultSymbol = "AAPL",
+            title = "Configure 2×1 Widget"
+        )
+        BaseWidgetConfigActivity.WidgetType.SMALL -> WidgetConfigData(
+            prefixKey = "small_",
+            defaultSymbol = "SPY",
+            title = "Configure 1×1 Widget"
+        )
+    }
 
     // Predefined URL templates for popular finance sites
     val urlTemplates = listOf(
@@ -116,11 +173,11 @@ fun WidgetConfigScreen(
         UrlTemplate("Google Finance", "https://www.google.com/finance/quote/{SYMBOL}")
     )
 
-    // Load existing settings if they exist
-    val existingSymbol = prefs.getString("symbol_$appWidgetId", "AAPL") ?: "AAPL"
-    val existingLaunchApp = prefs.getString("launch_app_$appWidgetId", null)
-    val existingLaunchUrl = prefs.getString("launch_url_$appWidgetId", null)
-    val existingTheme = prefs.getBoolean("theme_$appWidgetId", true) // Default to dark
+    // Load existing settings
+    val existingSymbol = prefs.getString("${config.prefixKey}symbol_$appWidgetId", config.defaultSymbol) ?: config.defaultSymbol
+    val existingLaunchApp = prefs.getString("${config.prefixKey}launch_app_$appWidgetId", null)
+    val existingLaunchUrl = prefs.getString("${config.prefixKey}launch_url_$appWidgetId", null)
+    val existingTheme = prefs.getBoolean("${config.prefixKey}theme_$appWidgetId", true)
 
     var symbol by remember { mutableStateOf(existingSymbol) }
     var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
@@ -128,7 +185,7 @@ fun WidgetConfigScreen(
     var isDarkTheme by remember { mutableStateOf(existingTheme) }
     var isUrlMode by remember { mutableStateOf(existingLaunchUrl != null) }
 
-    // Add these new variables to remember last selections
+    // Selection memory variables
     var lastSelectedApp by remember { mutableStateOf<AppInfo?>(null) }
     var lastSelectedUrlTemplate by remember { mutableStateOf<UrlTemplate?>(null) }
 
@@ -143,19 +200,19 @@ fun WidgetConfigScreen(
         if (existingLaunchApp != null) {
             selectedApp = availableApps.find { it.packageName == existingLaunchApp }
                 ?: availableApps.firstOrNull()
-            lastSelectedApp = selectedApp // Remember this selection
+            lastSelectedApp = selectedApp
         }
 
         if (existingLaunchUrl != null) {
             selectedUrlTemplate = urlTemplates.find { it.template == existingLaunchUrl }
                 ?: urlTemplates.firstOrNull()
-            lastSelectedUrlTemplate = selectedUrlTemplate // Remember this selection
+            lastSelectedUrlTemplate = selectedUrlTemplate
         }
 
-        // If neither exists, default to app mode with first app
+        // Default to app mode if neither exists
         if (existingLaunchApp == null && existingLaunchUrl == null) {
             selectedApp = availableApps.firstOrNull()
-            lastSelectedApp = selectedApp // Remember this default
+            lastSelectedApp = selectedApp
             isUrlMode = false
         }
     }
@@ -168,7 +225,7 @@ fun WidgetConfigScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Configure 2×1 Widget",
+            text = config.title,
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 32.dp)
         )
@@ -178,7 +235,7 @@ fun WidgetConfigScreen(
             value = symbol,
             onValueChange = { symbol = it.uppercase() },
             label = { Text("Stock Symbol") },
-            placeholder = { Text("e.g., AAPL, SPY, TSLA") },
+            placeholder = { Text("e.g., ${config.defaultSymbol}, SPY, TSLA") },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
@@ -214,7 +271,6 @@ fun WidgetConfigScreen(
                     FilterChip(
                         onClick = {
                             isUrlMode = false
-                            // Restore last selected app, or use first available if none
                             selectedApp = lastSelectedApp ?: availableApps.firstOrNull()
                         },
                         label = { Text("Launch App") },
@@ -227,7 +283,6 @@ fun WidgetConfigScreen(
                     FilterChip(
                         onClick = {
                             isUrlMode = true
-                            // Restore last selected URL template, or use first available if none
                             selectedUrlTemplate = lastSelectedUrlTemplate ?: urlTemplates.firstOrNull()
                         },
                         label = { Text("Open Website") },
@@ -263,7 +318,7 @@ fun WidgetConfigScreen(
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    text = "Opens ${template.buildUrl(symbol.ifBlank { "AAPL" })}",
+                                    text = "Opens ${template.buildUrl(symbol.ifBlank { config.defaultSymbol })}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -324,7 +379,6 @@ fun WidgetConfigScreen(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
-                // Theme Toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -386,16 +440,14 @@ fun WidgetConfigScreen(
             onDismissRequest = { showAppSelector = false },
             title = { Text("Select App to Launch") },
             text = {
-                LazyColumn(
-                    modifier = Modifier.height(400.dp)
-                ) {
+                LazyColumn(modifier = Modifier.height(400.dp)) {
                     items(availableApps) { app ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     selectedApp = app
-                                    lastSelectedApp = app // Remember this selection
+                                    lastSelectedApp = app
                                     showAppSelector = false
                                 }
                                 .padding(12.dp),
@@ -408,7 +460,6 @@ fun WidgetConfigScreen(
                                     .size(32.dp)
                                     .padding(end = 12.dp)
                             )
-
                             Text(
                                 text = app.appName,
                                 style = MaterialTheme.typography.bodyMedium
@@ -431,16 +482,14 @@ fun WidgetConfigScreen(
             onDismissRequest = { showUrlSelector = false },
             title = { Text("Select Finance Website") },
             text = {
-                LazyColumn(
-                    modifier = Modifier.height(400.dp)
-                ) {
+                LazyColumn(modifier = Modifier.height(400.dp)) {
                     items(urlTemplates) { template ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     selectedUrlTemplate = template
-                                    lastSelectedUrlTemplate = template // Remember this selection
+                                    lastSelectedUrlTemplate = template
                                     showUrlSelector = false
                                 }
                                 .padding(12.dp),
@@ -453,14 +502,13 @@ fun WidgetConfigScreen(
                                     .size(32.dp)
                                     .padding(end = 12.dp)
                             )
-
                             Column {
                                 Text(
                                     text = template.name,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    text = template.buildUrl(symbol.ifBlank { "AAPL" }),
+                                    text = template.buildUrl(symbol.ifBlank { config.defaultSymbol }),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -477,3 +525,9 @@ fun WidgetConfigScreen(
         )
     }
 }
+
+private data class WidgetConfigData(
+    val prefixKey: String,
+    val defaultSymbol: String,
+    val title: String
+)

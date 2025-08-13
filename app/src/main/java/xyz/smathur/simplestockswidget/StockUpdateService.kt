@@ -139,7 +139,7 @@ class StockUpdateService : BroadcastReceiver() {
             ComponentName(context, StockWidgetProvider::class.java)
         )
         for (widgetId in widgetIds) {
-            StockWidgetProvider.updateAppWidget(context, appWidgetManager, widgetId)
+            BaseStockWidgetProvider.updateAppWidget(context, appWidgetManager, widgetId, BaseStockWidgetProvider.WidgetSize.NORMAL)
         }
 
         // Update 1x1 widgets
@@ -147,7 +147,7 @@ class StockUpdateService : BroadcastReceiver() {
             ComponentName(context, SmallStockWidgetProvider::class.java)
         )
         for (widgetId in smallWidgetIds) {
-            SmallStockWidgetProvider.updateAppWidget(context, appWidgetManager, widgetId)
+            BaseStockWidgetProvider.updateAppWidget(context, appWidgetManager, widgetId, BaseStockWidgetProvider.WidgetSize.SMALL)
         }
     }
 
