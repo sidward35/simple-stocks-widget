@@ -4,7 +4,6 @@
     android:minHeight="40dp"
     android:targetCellWidth="2"
     android:targetCellHeight="1"
-    android:updatePeriodMillis="300000"
     android:initialLayout="@layout/widget_2x1_layout"
     android:configure="xyz.smathur.simplestockswidget.WidgetConfigActivity"
     android:resizeMode="horizontal|vertical"

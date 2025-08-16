@@ -30,18 +30,39 @@ abstract class BaseStockWidgetProvider : AppWidgetProvider() {
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        // Start the update service (only for normal widgets to avoid duplicate services)
+        // Start WorkManager (only for normal widgets to avoid duplicate scheduling)
         if (widgetSize == WidgetSize.NORMAL) {
-            StockUpdateService.scheduleUpdate(context)
+            android.util.Log.d("StockWidget", "Scheduling WorkManager from onEnabled")
+            StockUpdateWorker.scheduleUpdate(context)
         }
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
-        // Stop the update service (only for normal widgets)
+        // Stop WorkManager (only for normal widgets)
         if (widgetSize == WidgetSize.NORMAL) {
-            StockUpdateService.cancelUpdate(context)
+            android.util.Log.d("StockWidget", "Canceling WorkManager from onDisabled")
+            StockUpdateWorker.cancelUpdate(context)
         }
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        // Clean up preferences for deleted widgets
+        val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
+        val config = getWidgetConfig(widgetSize)
+
+        with(prefs.edit()) {
+            appWidgetIds.forEach { widgetId ->
+                remove("${config.prefixKey}symbol_$widgetId")
+                remove("${config.prefixKey}launch_app_$widgetId")
+                remove("${config.prefixKey}launch_url_$widgetId")
+                remove("${config.prefixKey}theme_$widgetId")
+            }
+            apply()
+        }
+
+        android.util.Log.d("StockWidget", "Cleaned up preferences for deleted widgets: ${appWidgetIds.contentToString()}")
     }
 
     companion object {
@@ -58,8 +79,8 @@ abstract class BaseStockWidgetProvider : AppWidgetProvider() {
             val launchApp = prefs.getString("${config.prefixKey}launch_app_$appWidgetId", null)
             val launchUrl = prefs.getString("${config.prefixKey}launch_url_$appWidgetId", null)
 
-            // Get stock data from cache
-            val stockData = StockDataCache.getStockData(symbol)
+            // Get stock data from cache (pass context for persistence)
+            val stockData = StockDataCache.getStockData(symbol, context)
 
             val views = RemoteViews(context.packageName, config.layoutRes)
 
