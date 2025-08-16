@@ -53,6 +53,39 @@ fun SettingsScreen() {
     var testApiCall by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf("") }
 
+    // Debug info state
+    var debugInfo by remember { mutableStateOf("Loading...") }
+
+    // Load debug info
+    LaunchedEffect(Unit) {
+        val lastWidgetUpdate = prefs.getLong("last_widget_update", 0L)
+        val lastSuccessfulUpdate = prefs.getLong("last_successful_update", 0L)
+        val lastUpdateAttempt = prefs.getLong("last_update_attempt", 0L)
+
+        val dateFormat = java.text.SimpleDateFormat("MM/dd HH:mm:ss", java.util.Locale.getDefault())
+
+        debugInfo = buildString {
+            appendLine("Last widget update: ${if (lastWidgetUpdate == 0L) "Never" else dateFormat.format(java.util.Date(lastWidgetUpdate))}")
+            appendLine("Last successful API call: ${if (lastSuccessfulUpdate == 0L) "Never" else dateFormat.format(java.util.Date(lastSuccessfulUpdate))}")
+            appendLine("Last update attempt: ${if (lastUpdateAttempt == 0L) "Never" else dateFormat.format(java.util.Date(lastUpdateAttempt))}")
+
+            // Show active symbols
+            val activeSymbols = StockDataCache.getActiveSymbols(context)
+            if (activeSymbols.isNotEmpty()) {
+                appendLine("Active symbols: ${activeSymbols.joinToString(", ")}")
+
+                // Show cached data timestamps
+                activeSymbols.forEach { symbol ->
+                    val stockData = StockDataCache.getStockData(symbol)
+                    val cacheTime = if (stockData.lastUpdated == 0L) "Default data" else dateFormat.format(java.util.Date(stockData.lastUpdated))
+                    appendLine("$symbol cache: $cacheTime")
+                }
+            } else {
+                appendLine("No active widgets found")
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -161,6 +194,12 @@ fun SettingsScreen() {
                                             val percentStr = if (percentChange >= 0) "+${"%.1f".format(percentChange)}%" else "${"%.1f".format(percentChange)}%"
 
                                             testResult = "✅ SPY: ${"%.2f".format(price)} $changeStr ($percentStr)"
+
+                                            // Update successful API call timestamp
+                                            with(prefs.edit()) {
+                                                putLong("last_successful_update", System.currentTimeMillis())
+                                                apply()
+                                            }
                                         } else {
                                             testResult = "❌ Invalid price data: $response"
                                         }
@@ -188,7 +227,7 @@ fun SettingsScreen() {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp)
+                    .padding(bottom = 16.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp)
@@ -203,6 +242,62 @@ fun SettingsScreen() {
                         text = testResult,
                         style = MaterialTheme.typography.bodyMedium
                     )
+                }
+            }
+        }
+
+        // Debug Info Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Debug Info",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Text(
+                    text = debugInfo,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
+
+                Button(
+                    onClick = {
+                        // Refresh debug info
+                        val lastWidgetUpdate = prefs.getLong("last_widget_update", 0L)
+                        val lastSuccessfulUpdate = prefs.getLong("last_successful_update", 0L)
+                        val lastUpdateAttempt = prefs.getLong("last_update_attempt", 0L)
+
+                        val dateFormat = java.text.SimpleDateFormat("MM/dd HH:mm:ss", java.util.Locale.getDefault())
+
+                        debugInfo = buildString {
+                            appendLine("Last widget update: ${if (lastWidgetUpdate == 0L) "Never" else dateFormat.format(java.util.Date(lastWidgetUpdate))}")
+                            appendLine("Last successful API call: ${if (lastSuccessfulUpdate == 0L) "Never" else dateFormat.format(java.util.Date(lastSuccessfulUpdate))}")
+                            appendLine("Last update attempt: ${if (lastUpdateAttempt == 0L) "Never" else dateFormat.format(java.util.Date(lastUpdateAttempt))}")
+
+                            val activeSymbols = StockDataCache.getActiveSymbols(context)
+                            if (activeSymbols.isNotEmpty()) {
+                                appendLine("Active symbols: ${activeSymbols.joinToString(", ")}")
+
+                                activeSymbols.forEach { symbol ->
+                                    val stockData = StockDataCache.getStockData(symbol)
+                                    val cacheTime = if (stockData.lastUpdated == 0L) "Default data" else dateFormat.format(java.util.Date(stockData.lastUpdated))
+                                    appendLine("$symbol cache: $cacheTime")
+                                }
+                            } else {
+                                appendLine("No active widgets found")
+                            }
+                        }
+                    },
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text("Refresh")
                 }
             }
         }

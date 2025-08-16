@@ -24,6 +24,16 @@ class StockUpdateService : BroadcastReceiver() {
     }
 
     private fun updateStockData(context: Context, forceUpdate: Boolean = false) {
+        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+
+        // Track update attempt
+        with(prefs.edit()) {
+            putLong("last_update_attempt", System.currentTimeMillis())
+            apply()
+        }
+
+        android.util.Log.d("StockWidget", "Update triggered - forceUpdate: $forceUpdate, marketHours: ${isMarketHours()}")
+
         // Only check market hours for automatic updates, not forced ones
         if (!forceUpdate && !isMarketHours()) {
             android.util.Log.d("StockWidget", "Outside market hours - skipping update")
@@ -40,9 +50,7 @@ class StockUpdateService : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                 val apiKey = prefs.getString("finnhub_api_key", "") ?: ""
-
                 android.util.Log.d("StockWidget", "Using API key: ${if (apiKey.isEmpty()) "EMPTY" else "SET"}")
 
                 if (apiKey.isEmpty()) {
@@ -52,19 +60,48 @@ class StockUpdateService : BroadcastReceiver() {
                     return@launch
                 }
 
+                var anySuccess = false
+                val failedSymbols = mutableListOf<String>()
+
                 activeSymbols.forEach { symbol ->
                     try {
                         android.util.Log.d("StockWidget", "Fetching data for: $symbol")
                         val stockData = fetchStockData(symbol, apiKey)
                         StockDataCache.updateStockData(symbol, stockData)
-                        android.util.Log.d("StockWidget", "Updated $symbol: ${stockData.price}")
+                        android.util.Log.d("StockWidget", "✅ Updated $symbol: ${stockData.price}")
+                        anySuccess = true
                     } catch (e: Exception) {
-                        android.util.Log.e("StockWidget", "Error fetching $symbol", e)
+                        android.util.Log.e("StockWidget", "❌ Error fetching $symbol, keeping cached data", e)
+                        failedSymbols.add(symbol)
+                        // Don't update cache - preserve existing data
                     }
                 }
 
-                // Update all widgets
-                updateAllWidgets(context)
+                // Only update widgets if we had at least one successful API call
+                // OR if all symbols failed but we have cached data
+                val shouldUpdateWidgets = anySuccess ||
+                        activeSymbols.all { StockDataCache.hasRealData(it) }
+
+                if (shouldUpdateWidgets) {
+                    android.util.Log.d("StockWidget", "Updating widgets - success: $anySuccess, failed: ${failedSymbols.size}")
+                    updateAllWidgets(context)
+
+                    // Track widget update
+                    with(prefs.edit()) {
+                        putLong("last_widget_update", System.currentTimeMillis())
+                        apply()
+                    }
+
+                    // Track successful update only if we had API success
+                    if (anySuccess) {
+                        with(prefs.edit()) {
+                            putLong("last_successful_update", System.currentTimeMillis())
+                            apply()
+                        }
+                    }
+                } else {
+                    android.util.Log.w("StockWidget", "No updates - all API calls failed and no cached data")
+                }
 
             } catch (e: Exception) {
                 android.util.Log.e("StockWidget", "Update error", e)
@@ -96,6 +133,11 @@ class StockUpdateService : BroadcastReceiver() {
         val change = json.getDouble("d")
         val percentChange = json.getDouble("dp")
 
+        // Validate data
+        if (currentPrice <= 0) {
+            throw Exception("Invalid price data: $currentPrice")
+        }
+
         return StockData(
             symbol = symbol,
             price = currentPrice,
@@ -105,6 +147,8 @@ class StockUpdateService : BroadcastReceiver() {
     }
 
     private fun updateWithMockData(context: Context, symbols: Set<String>) {
+        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+
         // Generate realistic mock data for demo purposes
         symbols.forEach { symbol ->
             val basePrice = when {
@@ -129,6 +173,13 @@ class StockUpdateService : BroadcastReceiver() {
         }
 
         updateAllWidgets(context)
+
+        // Track updates for mock data too
+        with(prefs.edit()) {
+            putLong("last_widget_update", System.currentTimeMillis())
+            putLong("last_successful_update", System.currentTimeMillis())
+            apply()
+        }
     }
 
     private fun updateAllWidgets(context: Context) {
