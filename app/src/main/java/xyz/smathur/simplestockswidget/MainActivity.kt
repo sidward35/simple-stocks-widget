@@ -49,7 +49,7 @@ fun SettingsScreen() {
     }
 
     var updateInterval by remember {
-        mutableStateOf(prefs.getInt("update_interval", 5).toString())
+        mutableStateOf(prefs.getInt("update_interval", 15).toString()) // Changed default to 15
     }
 
     var testApiCall by remember { mutableStateOf(false) }
@@ -57,6 +57,13 @@ fun SettingsScreen() {
 
     // Debug info state
     var debugInfo by remember { mutableStateOf("Loading...") }
+
+    // Validation state for update interval
+    val updateIntervalInt = updateInterval.toIntOrNull() ?: 0
+    val isUpdateIntervalValid = updateIntervalInt >= 15
+    val updateIntervalError = if (updateInterval.isNotEmpty() && !isUpdateIntervalValid) {
+        "Minimum 15 minutes required"
+    } else null
 
     // Function to refresh debug info
     fun refreshDebugInfo() {
@@ -179,11 +186,15 @@ fun SettingsScreen() {
                         label = { Text("Update Interval (minutes)") },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
+                        singleLine = true,
+                        isError = updateIntervalError != null,
+                        supportingText = if (updateIntervalError != null) {
+                            { Text(updateIntervalError, color = MaterialTheme.colorScheme.error) }
+                        } else null
                     )
 
                     Text(
-                        text = "Market hours: 9:30 AM - 4:00 PM ET (Mon-Fri)",
+                        text = "Market hours: 9:30 AM - 4:00 PM ET (Mon-Fri)\nMinimum interval: 15 minutes (WorkManager limitation)",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
@@ -193,7 +204,7 @@ fun SettingsScreen() {
                         onClick = {
                             with(prefs.edit()) {
                                 putString("finnhub_api_key", apiKey)
-                                putInt("update_interval", updateInterval.toIntOrNull() ?: 5)
+                                putInt("update_interval", updateIntervalInt)
                                 apply()
                             }
 
@@ -278,7 +289,8 @@ fun SettingsScreen() {
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 16.dp)
+                            .padding(top = 16.dp),
+                        enabled = isUpdateIntervalValid // Disable button if validation fails
                     ) {
                         Text("Save Settings & Update Widgets")
                     }
