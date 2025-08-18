@@ -35,10 +35,10 @@ class StockUpdateWorker(
             apply()
         }
 
-        android.util.Log.d("StockWidget", "Update triggered - forceUpdate: $forceUpdate, marketHours: ${isMarketHours(context)}")
+        android.util.Log.d("StockWidget", "Update triggered - forceUpdate: $forceUpdate, marketHours: ${isMarketHours()}")
 
         // Only check market hours for automatic updates, not forced ones
-        if (!forceUpdate && !isMarketHours(context)) {
+        if (!forceUpdate && !isMarketHours()) {
             android.util.Log.d("StockWidget", "Outside market hours - skipping update")
             return
         }
@@ -247,10 +247,7 @@ class StockUpdateWorker(
         }
     }
 
-    private fun isMarketHours(context: Context): Boolean {
-        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val intervalMinutes = prefs.getInt("update_interval", 15).toLong() + 1 // update interval plus buffer
-
+    private fun isMarketHours(): Boolean {
         val calendar = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("America/New_York"))
         val dayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK)
 
@@ -264,8 +261,8 @@ class StockUpdateWorker(
         val currentMinutes = hour * 60 + minute
 
         // Market hours: 9:30 AM (570 minutes) to 4:00 PM (960 minutes) ET
-        val marketOpenMinutes = 9 * 60 + 30                 // 9:30 AM = 570 minutes
-        val marketCloseMinutes = 16 * 60 + intervalMinutes  // 4:00 PM = 960 minutes + buffer for update interval
+        val marketOpenMinutes = 9 * 60 + 30  // 9:30 AM = 570 minutes
+        val marketCloseMinutes = 16 * 60     // 4:00 PM = 960 minutes
 
         return currentMinutes in marketOpenMinutes..marketCloseMinutes
     }
@@ -275,7 +272,7 @@ class StockUpdateWorker(
 
         fun scheduleUpdate(context: Context) {
             val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-            val intervalMinutes = prefs.getInt("update_interval", 15).toLong()
+            val intervalMinutes = prefs.getInt("update_interval", 5).toLong()
 
             android.util.Log.d("StockWidget", "Scheduling WorkManager with ${intervalMinutes}min interval")
 
