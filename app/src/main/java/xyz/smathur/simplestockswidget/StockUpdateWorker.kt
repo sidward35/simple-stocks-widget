@@ -261,10 +261,11 @@ class StockUpdateWorker(
         val currentMinutes = hour * 60 + minute
 
         // Market hours: 9:30 AM (570 minutes) to 4:00 PM (960 minutes) ET
-        val marketOpenMinutes = 9 * 60 + 30  // 9:30 AM = 570 minutes
-        val marketCloseMinutes = 16 * 60     // 4:00 PM = 960 minutes
+        val marketOpenMinutes = 9 * 60 + 30                     // 9:30 AM = 570 minutes
+        val marketCloseMinutes = 16 * 60                        // 4:00 PM = 960 minutes
+        val extendedCloseMinutes = marketCloseMinutes + 4 * 60  // 8:00 PM = 1200 minutes
 
-        return currentMinutes in marketOpenMinutes..marketCloseMinutes
+        return currentMinutes in marketOpenMinutes..extendedCloseMinutes
     }
 
     companion object {
@@ -272,7 +273,7 @@ class StockUpdateWorker(
 
         fun scheduleUpdate(context: Context) {
             val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-            val intervalMinutes = prefs.getInt("update_interval", 5).toLong()
+            val intervalMinutes = prefs.getInt("update_interval", 15).toLong()
 
             android.util.Log.d("StockWidget", "Scheduling WorkManager with ${intervalMinutes}min interval")
 
@@ -286,18 +287,11 @@ class StockUpdateWorker(
                 .addTag("market_hours")
                 .build()
 
-            // Off-hours work - less frequent updates (every hour)
-            val offHoursWork = PeriodicWorkRequestBuilder<StockUpdateWorker>(1, TimeUnit.HOURS)
-                .setConstraints(constraints)
-                .addTag("off_hours")
-                .build()
-
             val workManager = WorkManager.getInstance(context)
 
             // Cancel existing work
             workManager.cancelUniqueWork(WORK_NAME)
             workManager.cancelAllWorkByTag("market_hours")
-            workManager.cancelAllWorkByTag("off_hours")
 
             // Schedule new work
             workManager.enqueueUniquePeriodicWork(
