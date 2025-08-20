@@ -194,7 +194,7 @@ fun SettingsScreen() {
                     )
 
                     Text(
-                        text = "Market hours: 9:30 AM - 4:00 PM ET (Mon-Fri)\nMinimum interval: 15 minutes (WorkManager limitation)",
+                        text = "Market hours: 9:30 AM - 4:00 PM ET (Mon-Fri)\nMinimum interval: 15 minutes (Android limitation)",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
@@ -322,6 +322,7 @@ fun SettingsScreen() {
             }
 
             // Debug Info Card
+            /**
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -368,6 +369,7 @@ fun SettingsScreen() {
                     }
                 }
             }
+            */
 
             Card(
                 modifier = Modifier.fillMaxWidth()
