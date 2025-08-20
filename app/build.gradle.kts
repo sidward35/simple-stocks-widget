@@ -40,6 +40,8 @@ android {
 }
 
 dependencies {
+    // WorkManager for reliable background updates
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation(libs.androidx.core.ktx)

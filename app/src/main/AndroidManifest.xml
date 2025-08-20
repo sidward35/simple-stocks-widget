@@ -72,15 +72,11 @@
                 android:resource="@xml/small_stock_widget_info" />
         </receiver>
 
-        <!-- Stock Update Service -->
+        <!-- Boot receiver for WorkManager -->
         <receiver
-            android:name=".StockUpdateService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="xyz.smathur.simplestockswidget.UPDATE_STOCKS" />
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
+            android:name="androidx.work.impl.utils.ForceStopRunnable$BroadcastReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
     </application>
 
